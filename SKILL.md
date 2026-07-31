@@ -37,6 +37,12 @@ The orchestrator never builds and never judges. Holding the spec and the verdict
 record is the entire job — the moment it starts building, the independence the
 gates depend on is gone.
 
+**"Subagent" here means whatever your runtime uses to get a clean context:** a
+subagent, a spawned session, or a separate agent process. The requirement is
+that the builder and the judge each start without the other's reasoning in
+scope — not any particular runtime feature. Likewise `${CLAUDE_SKILL_DIR}` below
+is just this skill's own directory; substitute your runtime's equivalent.
+
 ## Workflow
 
 1. Resolve target from the argument (default `./loop`). If it already

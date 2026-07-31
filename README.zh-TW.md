@@ -2,23 +2,40 @@
 
 # LoopForge
 
-一個為 Claude Code 設計的 loop 設計教練（loop design coach）。它會透過六個階段訪談使用者——goal（目標）、verification（驗證）、council（協作陣容）、gates and caps（關卡與上限）、preview（預覽）、emit（產出）——針對每個回答依照 rubric（評分準則）提出批評，並產出一份 spec，以及一份供 agent loop（代理迴圈）使用的 orchestrator（協調者）操作手冊，讓這個迴圈能夠自行建置、檢查並修正自己的成果。
+一個 AI agent loop 的設計教練（design coach）——支援 Claude Code、Codex，或任何
+agent runtime（代理執行環境）。它會透過六個階段訪談使用者——goal（目標）、
+verification（驗證）、council（協作陣容）、gates and caps（關卡與上限）、
+preview（預覽）、emit（產出）——針對每個回答依照 rubric（評分準則）提出批評，
+並產出一份 spec，以及一份供 AI agent loop 使用的 orchestrator（協調者）操作
+手冊，讓這個迴圈能夠自行建置、檢查並修正自己的成果。
 
 LoopForge 只負責設計，不負責執行：它從不啟動迴圈——產出（emit）之後，何時開啟第一次迭代（iteration 1）由人類決定。
 
 ## Install
 
-把這個資料夾複製到你的 Claude Code skills 目錄：
+**Claude Code** —— clone 到你的 skills 目錄，然後執行 slash command：
 
 ```bash
 git clone https://github.com/kennethlaw325/loopforge.git ~/.claude/skills/loopforge
 ```
-
-然後在 Claude Code 中執行：
-
 ```
 /loopforge ./my-loop
 ```
+
+**Codex** —— clone 到全域（global）skills 目錄（或者專案內的 `.agents/skills/`，
+做一份限定專案範圍的副本），然後直接叫它的名字：
+
+```bash
+git clone https://github.com/kennethlaw325/loopforge.git ~/.agents/skills/loopforge
+```
+```
+Use the loopforge skill to design a loop in ./my-loop
+```
+
+**其他任何 agent runtime（代理執行環境）** —— clone 到任何地方，把 `SKILL.md`
+當作 system prompt 或任務簡報餵給你的 agent，讓它在走到每個階段時自己讀取
+`references/*.md`。`scripts/loopforge.py` 是一支單純的 CLI：它完全不需要任何
+agent，人類也可以照著 `RUN.md` 手動驅動整個迴圈。
 
 `--fast` 會在某個階段的回答已經夠紮實時直接採用，而不是逐一批評每個階段。
 
@@ -43,16 +60,20 @@ Agent 負責編輯 markdown 與 JSON。人類負責閱讀渲染後的 HTML。
 
 ## Quickstart
 
-1. **Design（設計）。** `/loopforge ./my-loop` 會走過六個階段並寫出 `SPEC.yaml`。
+1. **Design（設計）。** 呼叫這個 skill（`/loopforge ./my-loop`，或者你的 runtime
+   載入它的方式）走過六個階段並寫出 `SPEC.yaml`。
 2. **Compile（編譯）。** `py -3 scripts/loopforge.py compile ./my-loop/SPEC.yaml` 會產出
    `loop.resolved.json`、`PLAN.md` 與 `RUN.md`。它會拒絕任何讓迴圈自行為自己的成果簽核、
    讓 reviewer（審閱者）發出 verdict（判決）、讓 builder 為自己打分，或是缺少某個 cap
    （上限）設定的 spec。
 3. **Human go（人類放行）。** 閱讀預覽內容。在使用者同意之前，什麼都不會執行。
-4. **Run（執行）。** 該 session 會依照 `RUN.md` 作為這個迴圈的 orchestrator。每次迭代它會
-   執行 `loopforge.py check`（讀取檔案來判斷某個 cap 是否還允許再跑一輪）、派出一個全新的
-   builder subagent（子代理）、自行執行 programmatic（程式化）判準、為腳本無法衡量的部分
-   派出一個全新的 judge subagent，並把 verdict 附加到 `loop-state.json`。
+4. **Run（執行）。** 一個 agent session（或者一個人）會依照 `RUN.md` 作為這個迴圈的
+   orchestrator。每次迭代它會執行 `loopforge.py check`（讀取檔案來判斷某個 cap
+   是否還允許再跑一輪）、生成（spawn）一個全新的 builder agent、自行執行
+   programmatic（程式化）判準、為腳本無法衡量的部分生成一個全新的 judge agent，
+   並把 verdict 附加到 `loop-state.json`。「Fresh agent（全新的 agent）」指的是
+   你的 runtime 提供的任何形式：一個 subagent、一個新的 session，或是一個獨立
+   的 process——真正的要求是乾淨的 context，而不是某個特定功能。
 5. **Render（渲染）。** `loopforge.py render ./my-loop` 會重新產生 `loop.html`：
    進度、verdict 歷史、判準檢查清單，以及釘選在頂端的 builder 開放式問題。
 

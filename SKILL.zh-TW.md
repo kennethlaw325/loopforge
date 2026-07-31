@@ -27,6 +27,12 @@
 orchestrator 從不建置、也從不評判。它唯一的工作就是持有 spec 與 verdict 紀錄——一旦它
 開始自己動手建置，gate（關卡）所仰賴的獨立性就沒了。
 
+**這裡的「subagent」指的是你的 runtime 用來取得乾淨 context 的任何方式：** 一個
+subagent、一個生成出來的 session，或是一個獨立的 agent process。真正的要求是
+builder 與 judge 各自啟動時，看不到對方的推理過程——而不是某個特定的 runtime
+功能。同樣地，下面的 `${CLAUDE_SKILL_DIR}` 只是這個 skill 自己所在的目錄；換成
+你自己 runtime 的對應寫法即可。
+
 ## Workflow（工作流程）
 
 1. 從參數解析目標目錄（預設 `./loop`）。如果目標已有 `SPEC.yaml`，視為編輯／續作。
