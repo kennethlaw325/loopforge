@@ -1,0 +1,150 @@
+# SPEC.yaml — WHAT the loop must produce, and how it will be judged.
+#
+# This file is the source of truth and it is written for humans: keep the
+# comments, keep it readable, and edit it directly when a human ruling changes
+# a requirement. The compiler turns it into loop.resolved.json (machine-read),
+# PLAN.md (why the loop is shaped this way) and RUN.md (how to run it).
+#
+#   compile:  py -3 scripts/loopforge.py compile <dir>/SPEC.yaml
+#   POSIX:    python3 scripts/loopforge.py compile <dir>/SPEC.yaml
+#
+# Never put an API key, token or password in here.
+
+version: 2
+
+meta:
+  name: quickstart-doc
+  description: Write a quickstart a new contributor can follow without asking anyone
+
+goal:
+  statement: >
+    Produce docs/quickstart.md that takes a new contributor from a fresh clone
+    to a passing test run, with every command copy-pasteable and every
+    prerequisite named.
+  # What the builder must READ instead of assume.
+  context_sources:
+    - file: ./README.md
+    - cmd: ["git", "log", "--oneline", "-20"]
+  definition_of_done: >
+    docs/quickstart.md exists, has Prerequisites / Install / Run tests /
+    Troubleshooting sections, every step is a fenced command block, and it
+    contains no TODO or placeholder text.
+
+  # Typed criteria. Preference order: programmatic > judge > human.
+  # The weaker the judge's independence, the more of this list must be
+  # programmatic — anything a script can decide should never reach a judge.
+  verification:
+    - id: structure
+      type: programmatic
+      check: ["py", "-3", "scripts/check_quickstart.py", "docs/quickstart.md"]
+      expect: exit_zero          # exit_zero | exit_nonzero | stdout_contains
+
+    - id: no-placeholders
+      type: programmatic
+      check: ["git", "grep", "-n", "TODO", "--", "docs/quickstart.md"]
+      expect: exit_nonzero       # no match = nothing left to fill in
+
+    - id: followable
+      type: judge
+      rubric: >
+        Every step is executable as written by someone who has never seen this
+        repository: no implied knowledge, no "configure as needed", no command
+        that depends on a value the document never tells you where to find.
+        Judge only what the document says, not what the repo could have meant.
+
+    - id: ship-it
+      type: human
+      prompt: "Would you hand this to a new contributor on their first day, unedited?"
+
+# Who does what. The orchestrator (the session running RUN.md) dispatches these
+# as subagents; it never builds or judges itself.
+council:
+  - id: builder
+    role: builder
+    kind: subagent
+    model: inherit             # or a named model, e.g. sonnet / opus
+    context: fresh             # every iteration starts a new context, always
+
+  - id: judge-1
+    role: judge
+    kind: subagent             # default judge: a fresh same-family subagent
+    model: inherit
+    context: fresh
+    scope: [plan, delivery]
+
+  # OPTIONAL cross-family judge. Costs money, crosses a vendor boundary, and
+  # needs the privacy block below. Use it when the delivery is high-stakes
+  # enough that a same-family blind spot is a real risk.
+  # - id: judge-ext
+  #   role: judge
+  #   judge: deepseek          # -> bundled adapters/judge_deepseek.py
+  #   timeout_sec: 300
+
+gates:
+  plan_gate:
+    when: after_plan
+    members: [judge-1]
+    verdict_policy: revise_until_clean
+    verdict_source: judge-1
+    criteria: [followable]
+    max_revisions: 2
+
+  delivery_gate:
+    when: after_each_delivery
+    members: [judge-1]
+    verdict_policy: revise_until_clean
+    verdict_source: judge-1
+    criteria: [structure, no-placeholders, followable]
+    max_revisions: 3
+
+  # The ship gate. verdict_source MUST be `human` — the compiler rejects
+  # anything else. A builder can misread the spec and a same-family judge can
+  # misread it the same way; this is the gate that catches that.
+  final_gate:
+    when: before_delivery_to_user
+    verdict_policy: revise_until_clean
+    verdict_source: human
+    criteria: [ship-it]
+    max_revisions: 2
+
+loop_control:
+  max_iterations: 8
+  budget: { wall_clock_min: 45 }     # at least one of wall_clock_min / usd / tokens
+  no_progress:
+    max_stalled_iterations: 2
+    action: stop
+  human_checkpoints: [after_plan]
+  orchestrator_handover_every: 3     # fresh orchestrator session every N iterations
+  stop_conditions:
+    - "final_gate passes"
+    - "max_iterations reached"
+    - "the same blocker repeats for 2 iterations"
+    - "any budget cap exceeded"
+
+execution:
+  mode: orchestrator          # this session drives the loop; see RUN.md
+  isolation: branch           # current_workspace | branch | worktree | sandbox
+  side_effects:
+    requires_approval: true
+
+# Which hard invariants (references/hard-invariants.md) are wired to a check,
+# and which are deliberately waived. Anything not listed is unwaived —
+# silence is not a waiver.
+invariants:
+  - id: G7
+    status: checked
+    where: "criterion structure re-derives the section list from the file itself"
+  - id: S2
+    status: waived
+    reason: "single-process loop, no shared state file across processes"
+
+workspace:
+  dir: ./loop-workspace
+
+# Only needed when a council member is external (cross-vendor judge).
+# privacy:
+#   egress:
+#     - to: judge-ext
+#       sends: [plan, deliveries]
+#       redact: [".env", "secrets/**", "**/*.key"]
+#       consent: required
