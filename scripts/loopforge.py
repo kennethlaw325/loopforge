@@ -912,6 +912,72 @@ code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9e
 .wrap { overflow-x:auto; }
 """
 
+# meta.lang chrome strings for loop.html. Missing/unknown meta.lang -> "en"
+# (zero behavior change for existing loops). cap_report()'s own strings
+# (iteration/budget/no-progress chips) are shared with `check`'s terminal
+# output and stay English in both languages -- only the labels render_html
+# itself owns are translated here.
+GATE_GLOSS_ZH = {"plan_gate": "計劃閘", "delivery_gate": "交付閘", FINAL_GATE: "終閘"}
+
+LABELS: dict[str, dict[str, Any]] = {
+    "en": {
+        "html_lang": "en",
+        "chip_iteration": "iteration",
+        "chip_gate": "gate",
+        "gate_not_started": "not started",
+        "stop_prefix": "STOP: ",
+        "open_q_suffix": " — for the human to rule on",
+        "open_q_empty": "None raised yet.",
+        "verdict_history_heading": "Verdict history",
+        "th_num": "#", "th_gate": "gate", "th_verdict": "verdict",
+        "th_fault": "fault", "th_issues": "blocking issues",
+        "verdict_empty": "Not started. Nothing has run yet.",
+        "verification_heading": "Verification criteria",
+        "th_criterion": "criterion", "th_type": "type", "th_checks": "what it checks",
+        "mark_pass": "PASS", "mark_fail": "FAIL", "mark_unknown": "—",
+        "notes_heading": "Implementation notes",
+        "notes_empty": "The builder has not written any notes yet.",
+        "note_glosses": dict(NOTE_SECTIONS),
+    },
+    "zh": {
+        "html_lang": "zh-HK",
+        "chip_iteration": "輪",
+        "chip_gate": "閘",
+        "gate_not_started": "未開波",
+        "stop_prefix": "停：",
+        "open_q_suffix": "——等人類拍板",
+        "open_q_empty": "未有提出。",
+        "verdict_history_heading": "判決紀錄",
+        "th_num": "#", "th_gate": "閘", "th_verdict": "判決",
+        "th_fault": "責任", "th_issues": "阻塞問題",
+        "verdict_empty": "未開波，未跑過任何嘢。",
+        "verification_heading": "驗證準則",
+        "th_criterion": "準則", "th_type": "類型", "th_checks": "驗咩",
+        "mark_pass": "PASS", "mark_fail": "FAIL", "mark_unknown": "—",
+        "notes_heading": "實作筆記",
+        "notes_empty": "builder 仲未寫低筆記。",
+        "note_glosses": {
+            "設計決策": "spec 冇講嘅位，點解咁揀",
+            "偏離情況": "刻意偏離 spec 嘅位，附埋原因",
+            "價值取捨": "諗過嘅方案，點解揀呢個",
+            OPEN_QUESTIONS: "要俾人類拍板嘅問題",
+        },
+    },
+}
+
+
+def resolve_lang(resolved: dict[str, Any]) -> str:
+    lang = resolved.get("meta", {}).get("lang")
+    return lang if lang in LABELS else "en"
+
+
+def gate_display(gate_id: str, lang: str) -> str:
+    """Gate ids stay code-style (plan_gate/delivery_gate/final_gate); zh adds a gloss."""
+    if not gate_id:
+        return ""
+    gloss = GATE_GLOSS_ZH.get(gate_id)
+    return f"{gate_id}（{gloss}）" if lang == "zh" and gloss else gate_id
+
 
 def render_html(resolved: dict[str, Any], state: dict[str, Any], notes: dict[str, str]) -> str:
     esc = html.escape
@@ -920,83 +986,96 @@ def render_html(resolved: dict[str, Any], state: dict[str, Any], notes: dict[str
     iterations = state.get("iterations", [])
     blockers, remaining = cap_report(resolved, state)
     last = iterations[-1] if iterations else {}
+    lang = resolve_lang(resolved)
+    L = LABELS[lang]
 
     parts = [
         "<!doctype html>",
-        '<html lang="en"><head><meta charset="utf-8">',
+        f'<html lang="{L["html_lang"]}"><head><meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width,initial-scale=1">',
         f"<title>{esc(str(meta.get('name', 'LoopForge loop')))}</title>",
         f"<style>{CSS}</style></head><body><main>",
         f"<h1>{esc(str(meta.get('name', 'LoopForge loop')))}</h1>",
         f"<p class=\"sub\">{esc(str(meta.get('description', '')))}</p>",
         '<div class="chips">',
-        f'<span class="chip">iteration <b>{len(iterations)}</b> / {esc(str(control.get("max_iterations")))}</span>',
-        f'<span class="chip">gate <b>{esc(str(last.get("gate", "not started")))}</b></span>',
+        f'<span class="chip">{esc(L["chip_iteration"])} <b>{len(iterations)}</b> / {esc(str(control.get("max_iterations")))}</span>',
+        f'<span class="chip">{esc(L["chip_gate"])} <b>'
+        f'{esc(gate_display(str(last.get("gate", "")), lang) or L["gate_not_started"])}</b></span>',
     ]
     for line in remaining:
         parts.append(f'<span class="chip">{esc(line)}</span>')
     for blocker in blockers:
-        parts.append(f'<span class="chip bad">STOP: {esc(blocker)}</span>')
+        parts.append(f'<span class="chip bad">{esc(L["stop_prefix"])}{esc(blocker)}</span>')
     parts.append("</div>")
 
     open_q = notes.get(OPEN_QUESTIONS, "").strip()
-    parts.append(f"<h2>{esc(OPEN_QUESTIONS)} — for the human to rule on</h2>")
+    parts.append(f"<h2>{esc(OPEN_QUESTIONS)}{esc(L['open_q_suffix'])}</h2>")
     parts.append(
         f'<div class="card flag"><pre>{esc(open_q)}</pre></div>'
         if open_q
-        else '<p class="empty">None raised yet.</p>'
+        else f'<p class="empty">{esc(L["open_q_empty"])}</p>'
     )
 
-    parts.append("<h2>Verdict history</h2>")
+    parts.append(f"<h2>{esc(L['verdict_history_heading'])}</h2>")
     if iterations:
-        rows = ["<div class=\"wrap\"><table><tr><th>#</th><th>gate</th><th>verdict</th>"
-                "<th>fault</th><th>blocking issues</th></tr>"]
+        rows = [
+            '<div class="wrap"><table><tr>'
+            f"<th>{esc(L['th_num'])}</th><th>{esc(L['th_gate'])}</th><th>{esc(L['th_verdict'])}</th>"
+            f"<th>{esc(L['th_fault'])}</th><th>{esc(L['th_issues'])}</th></tr>"
+        ]
         for index, record in enumerate(iterations, 1):
             verdict = str(record.get("verdict", "?"))
             cls = "pass" if verdict == "pass" else "fail"
             issues = "<br>".join(esc(str(i)) for i in record.get("blocking_issues", [])) or "—"
             rows.append(
                 f"<tr><td>{esc(str(record.get('n', index)))}</td>"
-                f"<td><code>{esc(str(record.get('gate', '')))}</code></td>"
+                f"<td><code>{esc(gate_display(str(record.get('gate', '')), lang))}</code></td>"
                 f'<td class="{cls}">{esc(verdict)}</td><td>{esc(str(record.get("fault_source", "—")))}</td>'
                 f"<td>{issues}</td></tr>"
             )
         parts.append("".join(rows) + "</table></div>")
     else:
-        parts.append('<p class="empty">Not started. Nothing has run yet.</p>')
+        parts.append(f'<p class="empty">{esc(L["verdict_empty"])}</p>')
 
-    parts.append("<h2>Verification criteria</h2>")
+    parts.append(f"<h2>{esc(L['verification_heading'])}</h2>")
     latest: dict[str, str] = {}
     for record in iterations:
         results = record.get("criteria")
         if isinstance(results, dict):
             latest.update({str(k): str(v) for k, v in results.items()})
-    rows = ['<div class="wrap"><table><tr><th></th><th>criterion</th><th>type</th><th>what it checks</th></tr>']
+    rows = [
+        '<div class="wrap"><table><tr>'
+        f"<th></th><th>{esc(L['th_criterion'])}</th><th>{esc(L['th_type'])}</th><th>{esc(L['th_checks'])}</th></tr>"
+    ]
     for item in resolved.get("goal", {}).get("verification", []):
         status = latest.get(item["id"], "")
-        mark, cls = {"pass": ("PASS", "pass"), "fail": ("FAIL", "fail")}.get(status, ("—", "unknown"))
+        mark, cls = {"pass": (L["mark_pass"], "pass"), "fail": (L["mark_fail"], "fail")}.get(
+            status, (L["mark_unknown"], "unknown")
+        )
         detail = item.get("rubric") or item.get("prompt") or " ".join(item.get("check", []))
         rows.append(
-            f'<tr><td class="{cls}">{mark}</td><td><code>{esc(item["id"])}</code></td>'
+            f'<tr><td class="{cls}">{esc(mark)}</td><td><code>{esc(item["id"])}</code></td>'
             f"<td>{esc(item['type'])}</td><td>{esc(str(detail).strip())}</td></tr>"
         )
     parts.append("".join(rows) + "</table></div>")
 
-    parts.append("<h2>Implementation notes</h2>")
+    parts.append(f"<h2>{esc(L['notes_heading'])}</h2>")
     wrote_any = False
-    for name, gloss in NOTE_SECTIONS:
+    glosses = L["note_glosses"]
+    for name, en_gloss in NOTE_SECTIONS:
         if name == OPEN_QUESTIONS:
             continue
         body = notes.get(name, "").strip()
         if not body:
             continue
         wrote_any = True
+        gloss = glosses.get(name, en_gloss)
         parts.append(
             f'<div class="card"><h3>{esc(name)} <span class="empty">— {esc(gloss)}</span></h3>'
             f"<pre>{esc(body)}</pre></div>"
         )
     if not wrote_any:
-        parts.append('<p class="empty">The builder has not written any notes yet.</p>')
+        parts.append(f'<p class="empty">{esc(L["notes_empty"])}</p>')
 
     parts.append("</main></body></html>")
     return "\n".join(parts) + "\n"
