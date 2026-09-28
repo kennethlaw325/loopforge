@@ -79,3 +79,10 @@ already know the answer, is this the thing that was asked for.
 - Unparseable / errored / self-inconsistent output carries a `warning` and is a
   BAD JUDGE CALL, not a real verdict — it never aborts the loop and MUST NOT
   trigger a builder revision (see control rubric).
+- **Multi-clause criteria report coverage, not only a verdict.** Add optional
+  `"clauses_checked": [{"clause": "<id>", "status": "pass" or "fail"}]`; the
+  next fresh judge receives the previous list as a coverage map (not a
+  verdict to trust) plus which files changed since, and examines unchecked
+  clauses first. 〔three fresh judges each found a different pre-existing gap
+  the earlier ones had marked pass; the revision quota ran out on
+  one-sentence-at-a-time discovery〕

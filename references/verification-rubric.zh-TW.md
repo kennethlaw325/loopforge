@@ -79,3 +79,10 @@ programmatic（程式化） > judge（評判） > human（人類）。
 - 無法解析／出錯／自相矛盾的輸出會帶有一個 `warning`，這是一次**糟糕的 judge
   呼叫（BAD JUDGE CALL）**，不是一個真正的 verdict——它絕不會中止這個迴圈，
   也絕對**不能**觸發 builder 的 revision（詳見 control rubric）。
+- **多條款判準要回報涵蓋範圍（coverage），不能只回一個 verdict。** 加一個
+  選填欄位 `"clauses_checked": [{"clause": "<id>", "status": "pass" 或
+  "fail"}]`；下一個全新的 judge 會收到上一輪的清單，當作涵蓋地圖（coverage
+  map）來用（而不是當作可信的 verdict），還有哪些檔案在那之後有變動，並且
+  優先檢查未被勾選過的條款。〔三個全新的 judge 各自找到一個先前判過 pass、
+  但其實早就存在的漏洞；revision（修訂）額度就在一句一句慢慢發現的過程裡
+  用完了〕

@@ -13,6 +13,14 @@
 - 至少一個 budget（預算）cap：`wall_clock_min` / `usd` / `tokens`
 - 一條描述**成功**的停止條件。
 - 一條描述**no-progress（無進展）／重複失敗**的停止條件。
+- budget 要寫明 pre-iteration 的工作（harness build、input refresh）算不算進
+  這個 cap；如果不算，就要另開一個 `pre_iteration_min` 欄位來記，而不是讓它
+  沒有地方可以算。當某個輸入在 preflight 檢查之前就過期了，停止條件也要
+  講清楚：先 regenerate 再繼續，是操作者可以自行決定的，還是必須直接停下來
+  ——這個答案要在設計階段就寫下來，或者明文 defer 並附上理由；不要留到
+  checkpoint 現場才臨時決定。〔180 分鐘的預算裡，81 分鐘在任何 builder 開工
+  之前就花在 step 0，卻沒有任何被批准的地方可以記；一個過期的輸入在
+  preflight 之前被悄悄 regenerate 了，而設計裡完全沒講這樣做是不是允許的〕
 
 cap 是靠讀取檔案來強制執行的，不是靠記憶。orchestrator 在每次迭代一開始都會執行
 `loopforge.py check <dir>`：exit 0 = 可以繼續，非 0 = 停下來並上報。一個要靠迴圈

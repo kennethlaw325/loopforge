@@ -48,8 +48,15 @@ agent、一個長時間運行的任務排程器，以及一個多階段的內容
 - **J7 · 驗證用的 harness 本身，在被煙霧測試（smoke-tested）之前都不可信。**
   只有在實際執行過它、並且從真實的 stdout 裡解析出 `N pass / 0 fail` 之後，
   才能說「驗證通過」。禁止把 VCS 指令的 exit code 當作 pass/fail 訊號來用
-  （hook 會污染它）。〔一次迭代裡出現 3 個假的 FAIL，全都來自一個
-  post-checkout hook〕
+  （hook 會污染它）。針對替代品（stand-in）寫成的 harness，在 commit 之前
+  還需要：(a) 由一位新的讀者，逐條斷言（assertion）對照它所引用的 SPEC
+  行覆核——oracle 與 stand-in 共用、但 SPEC 沒有寫明的規則，要寫進 harness
+  的 README 作為詮釋（interpretation），否則就是耦合（coupling）；(b) 每一個
+  從真實設定檔（real config）推導出 watched／root set 的腳本，都要跑一次
+  真實設定的 dry run，把印出來的 scope 對照預期清單核對。〔一次迭代裡出現
+  3 個假的 FAIL，全都來自一個 post-checkout hook；對著替代品跑出的綠色
+  selftest 隱藏了六個 spec 耦合漏洞；只在 sandbox 裡做的 smoke test，隱藏了
+  一個 scope 遠比預期寬的 watcher〕
 
 ## G —— Gate 與計畫設計
 
@@ -72,6 +79,11 @@ agent、一個長時間運行的任務排程器，以及一個多階段的內容
   （隔離範圍）等於 branch，而且沒有執行過任何被禁止的副作用時，才允許用
   proxy（代理核准）；proxy 核准要寫成一筆有型別的紀錄。〔一次 AFK（離開）
   60 秒的 proxy 核准是臨場即興決定的——僅僅因為運氣好碰上分支隔離才沒出事〕
+  每個 checkpoint 都要同時指明自己的喚醒管道（wake channel）：終端輸入／
+  傳給指定 session 的訊息／帶輪詢間隔的檔案輪詢（file poll）；互動式
+  orchestrator 不會監看檔案，所以產出的 RUN.md 必須寫明答案要如何送達，而且
+  只有在 orchestrator 出現活動時才算送達。〔答案寫進了 checkpoint 檔案，
+  卻擱置了 14 分鐘沒人讀取〕
 - **G5 · 一個 gate 不能自己寫自己的門檻。** 設定／門檻的雜湊值要斷言在各次
   迭代之間保持不變；要改就必須由人類提交變更。〔一個 budget check 每次花費
   達到 90% 就自動調高自己的上限〕
