@@ -16,4 +16,6 @@ itself.
 
 LoopForge does not start the loop. Iteration 1 begins only when you say go.
 
-Target dir: $ARGUMENTS
+Target dir: $ARGUMENTS — strip a leading `--fast` first; if what remains has
+no `/` or `\` and is not an existing path, treat it as a brief description
+(default target `./loop`, or ask once if ambiguous) instead of a target dir.

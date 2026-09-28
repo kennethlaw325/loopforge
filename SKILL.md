@@ -45,8 +45,20 @@ is just this skill's own directory; substitute your runtime's equivalent.
 
 ## Workflow
 
-1. Resolve target from the argument (default `./loop`). If it already
-   has a `SPEC.yaml`, treat as edit/resume. Detect `--fast` in the argument.
+1. Resolve target from the argument (default `./loop`). Strip a leading
+   `--fast` token first (detect it as the fast-mode flag, not part of the
+   target). What remains, if anything: if it has no `/` or `\` and is not an
+   existing path, treat it as a brief description, not a target dir — keep
+   the default `./loop` target (or ask once if the intent is ambiguous) and
+   write the brief verbatim into `SPEC.yaml`'s `meta.description`. Otherwise
+   treat it as the target dir. If the resolved target already has a
+   `SPEC.yaml`, treat as edit/resume: after each edit to a concept that has
+   an id (a criterion id, a gate name, a council member id), grep the pack
+   for that id before re-emitting — a rename or scope change can leave a
+   stale reference in `PLAN.md` / `RUN.md` prose that the compiler does not
+   catch (obs #306). ⚠️ this relies on memory, no enforcement point yet — a
+   4th recurrence adds a compile-time cross-check instead of more reminder
+   text.
 2. Interview in SIX stages. Load the matching rubric ONLY when entering it:
    - Goal -> `${CLAUDE_SKILL_DIR}/references/goal-rubric.md`
    - Verification -> `${CLAUDE_SKILL_DIR}/references/verification-rubric.md`
@@ -70,6 +82,12 @@ is just this skill's own directory; substitute your runtime's equivalent.
    - **Exit condition:** a stage counts as tightened when a fresh builder
      subagent could act on the answer without asking a single question. That,
      not "sounds good", is what lets you advance.
+   - **Invariant codes (J1-J7, G1-G10 from `hard-invariants.md`) are write-side
+     vocabulary** — they belong in `SPEC.yaml`'s `invariants:` block and other
+     emit files, never in conversation. When a critique rests on one, say the
+     consequence in the user's own domain terms ("the exam has to be taken
+     once, not retried until it passes" — not "J7"). A critique that leaks a
+     code name has zero information loss to fix: say it plainly instead.
    - When one stage holds several independent decisions (Gates & Control carries
      four separate caps), number them and put the whole round up at once, each
      with its own recommended answer. That is batching WITHIN a stage — stages
@@ -125,22 +143,44 @@ regenerated, never hand-edited.
 ## implementation-notes.md — the builder's four sections
 **設計決策** (choices made where the spec was silent) · **偏離情況** (deliberate
 deviations, with reasons) · **價值取捨** (alternatives considered and why this one
-won) · **開放式問題** (what the human should rule on).
+won) · **開放式問題** (only a question where both hold: (1) two competent
+builders would choose differently; (2) the choice changes what the owner
+sees or pays for — output shape, scope, cost, accepted risk. Everything else
+is a design decision — use your default).
 
 Three mechanisms hang off it:
 - **Delivery gate.** No notes update = nothing was delivered. Send it back before
-  running any gate.
+  running any gate. **Probe writability before emitting:** dispatch one throwaway
+  builder subagent — the same builder invoke the SPEC council names, same model,
+  same sandbox flag, not a stand-in — to write `<target>/.probe-write`, then
+  read that path back yourself. Also have it run one command (e.g.
+  `py -3 -c "print(1)"`) and return the stdout: a session opening is not the
+  same as a process actually starting. File absent = this runtime blocks
+  builder writes — move the notes write to the orchestrator (builder returns
+  the four sections in its report) and say so in `SPEC.yaml`. Exec failing
+  (e.g. Codex `CreateProcessWithLogonW failed: 5`) means the Council stage
+  swaps the builder or writes a waiver — never emit on a probe that only
+  wrote the file and never ran a command. Never leave the gate hanging on an
+  action a guard stops: a blocked worker silently routes around it and puts
+  the update in its message
+  instead. Delete the probe file before emitting. (obs #209)
 - **Judge input.** The judge reads 偏離情況 against `SPEC.yaml`. An unrecorded
   deviation is itself a blocking issue; a recorded one is judged on its reason.
 - **Checkpoint agenda.** At each human checkpoint the orchestrator surfaces
   開放式問題 plus the load-bearing 設計決策. Whatever the human rules on is
   written back into `SPEC.yaml` — that is how the spec grows a decision trail.
+  Before writing CHECKPOINT.md, triage each candidate 開放式問題 against the
+  admission test above; anything that fails it moves to 設計決策 instead.
 
 ## File rules
 - argv arrays, never shell strings, for every check and external invocation.
 - Never write API keys / tokens / passwords into any emitted file.
 - Keep `SPEC.yaml` human-readable and commented. Machines read
   `loop.resolved.json`.
+- Reading lists split by role: the orchestrator reads `RUN.md` plus the
+  criteria/stop/gates fields in `loop.resolved.json`, pulling `SPEC.yaml` /
+  `PLAN.md` prose in only by section as a step needs it; a builder or judge
+  subagent reads the full pack up front, referenced by path.
 
 ## Design-only boundary (hard rule)
 LoopForge designs and emits. It does not start iteration 1, schedule anything,

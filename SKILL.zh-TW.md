@@ -35,8 +35,17 @@ builder 與 judge 各自啟動時，看不到對方的推理過程——而不�
 
 ## Workflow（工作流程）
 
-1. 從參數解析目標目錄（預設 `./loop`）。如果目標已有 `SPEC.yaml`，視為編輯／續作。
-   從參數中偵測 `--fast`。
+1. 從參數解析目標目錄（預設 `./loop`）。先剝走開頭的 `--fast`（當成 fast
+   模式旗標處理，不算目標的一部分）。剩下的部分，如果有的話：如果裡面沒有
+   `/` 或 `\`，而且也不是一個現存的路徑，就當成是一句簡介，而不是目標目錄
+   ——保留預設的 `./loop` 目標（意圖不清楚就問一次），並把這句簡介原文寫進
+   `SPEC.yaml` 的 `meta.description`。否則就當成目標目錄。如果解析出來的目標
+   已有 `SPEC.yaml`，視為編輯／續作：這個分支下每次改動一個有 id 的概念
+   （判準 id、gate 名稱、council 成員 id）之後，重新產出前先對這個 id 做一次
+   grep——改名或改範圍，可能會在 `PLAN.md`／`RUN.md` 的敘述文字裡留下編譯器
+   抓不到的過期引用（obs #306）。⚠️ 這條目前靠記憶，還沒有 enforcement
+   point；第 4 次再發生的話，就改加一個編譯時的交叉檢查，而不是再加提醒
+   文字。
 2. 以六個階段進行訪談。只在進入該階段時才載入對應的 rubric：
    - Goal（目標） -> `${CLAUDE_SKILL_DIR}/references/goal-rubric.md`
    - Verification（驗證） -> `${CLAUDE_SKILL_DIR}/references/verification-rubric.md`
@@ -117,7 +126,9 @@ Agent 負責編輯 markdown 與 JSON。人類負責閱讀渲染後的 HTML。`lo
 ## implementation-notes.md ——builder 的四個段落
 **設計決策**（在 spec 保持沉默之處所做的選擇）・**偏離情況**（刻意的偏離，並附上理由）
 ・**價值取捨**（考慮過的其他方案，以及為什麼是這個方案勝出）・**開放式問題**
-（該由人類來裁定的事項）。
+（只寫符合以下兩個條件的問題：(1) 兩位稱職的 builder 會做出不同選擇；(2) 這個
+選擇會改變 owner 看到的東西或要付出的代價——輸出形狀、scope、cost、可接受的
+風險。其餘一律歸類為設計決策——採用你自己的預設值）。
 
 有三個機制掛在這上面：
 - **Delivery gate（交付關卡）。** notes 沒有更新 = 什麼都沒交付。在跑任何 gate 之前，
@@ -127,12 +138,17 @@ Agent 負責編輯 markdown 與 JSON。人類負責閱讀渲染後的 HTML。`lo
   則是依照它給出的理由來評判。
 - **Checkpoint agenda（檢查點議程）。** 在每個人類 checkpoint，orchestrator 會把
   「開放式問題」以及具有決定性影響的「設計決策」呈現出來。人類裁定的結果會被寫回
-  `SPEC.yaml`——spec 就是這樣一路累積出決策軌跡的。
+  `SPEC.yaml`——spec 就是這樣一路累積出決策軌跡的。在寫 CHECKPOINT.md 之前，先用
+  上面的判準逐一檢視候選的「開放式問題」；不符合判準的，改歸入「設計決策」。
 
 ## File rules（檔案規則）
 - 每個 check 與外部呼叫一律使用 argv 陣列，絕不使用 shell 字串。
 - 絕不把 API key／token／密碼寫進任何產出的檔案。
 - 保持 `SPEC.yaml` 讓人可讀、有註解。機器讀的是 `loop.resolved.json`。
+- 開工要讀的清單按角色分開：orchestrator 讀 `RUN.md`，加上
+  `loop.resolved.json` 裡的 criteria／stop／gates 欄位；`SPEC.yaml`／
+  `PLAN.md` 的內文，只在某個步驟需要某個 section 時才讀進來。builder 或
+  judge subagent 則一開工就讀完整份 pack，並且按路徑引用。
 
 ## Design-only boundary（只做設計的邊界，硬性規則）
 LoopForge 只負責設計與產出。它不會啟動 iteration 1、不會排程任何東西、也不會管理

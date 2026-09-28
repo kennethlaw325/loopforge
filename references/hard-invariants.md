@@ -44,7 +44,16 @@ rely on them, don't re-emit.
 - **J7 · The verify harness is itself untrusted until smoke-tested.** "Verify
   green" only after executing it and parsing `N pass / 0 fail` from real
   stdout. A VCS command's exit code is forbidden as a pass/fail signal (hooks
-  pollute it). 〔3 false FAILs in one iteration, all from a post-checkout hook〕
+  pollute it). A harness written against a stand-in product also needs,
+  before commit: (a) a fresh reader checking every assertion against the SPEC
+  line it cites -- a rule the oracle and the stand-in share that the SPEC
+  does not state is written in the harness README as an interpretation, or
+  it is coupling; (b) one real-config dry run of each script that derives
+  its watched/root set from a real config file, its printed scope checked
+  against an expected list. 〔3 false FAILs in one iteration, all from a
+  post-checkout hook; a green selftest against the stand-in hid six
+  spec-coupling holes; sandbox-only smoke hid a watcher scoped far wider
+  than intended〕
 
 ## G — Gate & plan design
 
@@ -66,7 +75,12 @@ rely on them, don't re-emit.
   on_timeout: wait | proxy_if_reversible | stop}`; proxy allowed only when
   isolation == branch AND zero forbidden side effects executed; proxy approval
   written as a typed record. 〔a 60-second-AFK proxy approval was improvised —
-  safe only by luck of branch isolation〕
+  safe only by luck of branch isolation〕 Each checkpoint also names its wake
+  channel (terminal input / message to a named session / file poll with
+  interval); an interactive orchestrator does not watch files, so the
+  emitted RUN.md must say how an answer reaches it, and delivery counts only
+  when the orchestrator shows activity. 〔answers written to the checkpoint
+  file sat unread for 14 minutes〕
 - **G5 · A gate may not write its own threshold.** Config/threshold hash
   asserted unchanged between iterations; changes require a human commit.
   〔a budget check auto-raised its own cap every time spend hit 90%〕

@@ -216,6 +216,26 @@ class CheckCommand(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("max_iterations reached (8/8)", out)
 
+    def test_missing_context_source_file_warns_without_blocking(self):
+        spec = valid_spec()
+        spec["goal"]["context_sources"] = [{"file": "does-not-exist.md"}]
+        env = TempSpec(spec)
+        self.assertEqual(env.compile()[0], 0)
+        code, out = run(["check", str(env.dir)])
+        self.assertEqual(code, 0, out)  # a missing source warns, never blocks
+        self.assertIn("WARN context_source missing: does-not-exist.md", out)
+
+    def test_existing_context_source_file_does_not_warn(self):
+        spec = valid_spec()
+        present = Path(tempfile.gettempdir()) / "loopforge-test-context-source.md"
+        present.write_text("present", encoding="utf-8")
+        spec["goal"]["context_sources"] = [{"file": str(present)}]
+        env = TempSpec(spec)
+        self.assertEqual(env.compile()[0], 0)
+        code, out = run(["check", str(env.dir)])
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("WARN context_source missing", out)
+
     def test_spec_may_not_write_outside_the_loop_directory(self):
         for field, value in (("dashboard", str(Path(tempfile.gettempdir()) / "pwned.html")),
                              ("dashboard", "../pwned.html"),

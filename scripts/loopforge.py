@@ -56,7 +56,10 @@ NOTE_SECTIONS = (
     ("設計決策", "Design decisions made where the spec was silent"),
     ("偏離情況", "Deliberate deviations from the spec, with reasons"),
     ("價值取捨", "Alternatives considered and why this one won"),
-    ("開放式問題", "Questions for the human to rule on"),
+    ("開放式問題", "Only a question where both hold: (1) two competent "
+     "builders would choose differently; (2) the choice changes what the "
+     "owner sees or pays for (output shape, scope, cost, accepted risk). "
+     "Everything else is a design decision -- use your default."),
 )
 OPEN_QUESTIONS = NOTE_SECTIONS[3][0]
 
@@ -386,7 +389,7 @@ def normalize_spec(spec: dict[str, Any], source_path: Path) -> dict[str, Any]:
 
     workspace = spec.setdefault("workspace", {})
     workspace.setdefault("dir", "./loop-workspace")
-    workspace.setdefault("layout", ["plan.md", "delivery-{n}.md", "review-{n}.md"])
+    workspace.setdefault("layout", ["build-plan.md", "delivery-{n}.md", "review-{n}.md"])  # build-plan.md, not plan.md: PLAN.md collides on case-insensitive filesystems (NTFS/APFS)
 
     # Only relevant to the optional external-judge mode; harmless otherwise.
     privacy = spec.setdefault("privacy", {})
@@ -557,7 +560,7 @@ def render_ascii(resolved: dict[str, Any]) -> str:
     lines: list[str] = []
     lines += ascii_box("0. loopforge.py check", "caps read from state file")
     lines += ["              |", "              v"]
-    lines += ascii_box(f"1. builder subagent ({clip(builder, 12)})", "plan.md + notes update")
+    lines += ascii_box(f"1. builder subagent ({clip(builder, 12)})", "build-plan.md + notes update")
     lines += ["              |", "              v"]
     lines += ascii_box("2. PLAN GATE", f"verdict: {plan_g.get('verdict_source', 'human')}")
     lines += [f"      | revise <= {plan_g.get('max_revisions', 0)} -> step 1", "      | pass", "      v"]
@@ -819,13 +822,23 @@ def render_run(resolved: dict[str, Any]) -> str:
         "",
         "## Resume in a new session",
         "",
-        "1. Read `SPEC.yaml` (what) and `PLAN.md` (why).",
+        "1. Read `SPEC.yaml` (what) and `PLAN.md` (why) — by section, pulling "
+        "in only what a step below needs; the orchestrator does not read the "
+        "full pack up front the way a builder or judge subagent does.",
         "2. Read this file (how).",
         f"3. Read `{observ.get('state_file', STATE_FILE)}` — iteration count, verdicts, spend so far.",
         f"4. Read `{notes}` — what the builder decided.",
         f"5. Run `{py} {script} check <dir>` and continue from step 1 above.",
+        "6. Any action a checkpoint proposed that rests on a negative claim "
+        "(a file doesn't exist, a count is zero, a tool is unavailable) is "
+        "re-verified against the live system before it is acted on. A "
+        "checkpoint observation is dated evidence, not a standing "
+        "instruction.",
         "",
         "Do not re-read the whole artifact history. The verdict record is the history.",
+        "CHECKPOINT.md observations that state a negative claim carry "
+        "`(verified <how> at <time>)`; an unverified one is a stale guess, "
+        "not a fact the next session can act on.",
         "",
         "## Workspace",
         "",
@@ -1100,6 +1113,13 @@ def cmd_check(args) -> int:
     directory = args.dir.resolve()
     resolved = load_resolved(directory)
     state = load_state(directory, resolved)
+    # Existence only -- no dry run. context_sources entries can carry a
+    # `cmd` instead of a `file`, and a `cmd` may have side effects, so
+    # `check` (read-only by contract) never executes it here.
+    for source in resolved.get("goal", {}).get("context_sources", []):
+        file_ref = source.get("file") if isinstance(source, dict) else None
+        if file_ref and not Path(file_ref).exists():
+            print(f"WARN context_source missing: {file_ref}")
     blockers, remaining = cap_report(resolved, state)
     if blockers:
         print("STOP — do not open another iteration:")

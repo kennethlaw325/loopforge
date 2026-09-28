@@ -11,6 +11,16 @@
 - At least one budget cap: `wall_clock_min` / `usd` / `tokens`
 - A stop condition describing SUCCESS.
 - A stop condition describing no-progress / repeated failure.
+- The budget states whether pre-iteration work (harness build, input
+  refresh) counts against the cap; if it does not, open a separate
+  `pre_iteration_min` column for it instead of leaving it uncounted. When an
+  input goes stale before a preflight check, the stop condition also says
+  whether regenerating it first is the operator's call or a hard stop —
+  write the answer down at design time, or defer it explicitly with a
+  reason; do not leave it to be improvised at the checkpoint. 〔81 of 180
+  budgeted minutes went to step 0 before any builder ran, with nowhere
+  sanctioned to record it; a stale input got silently regenerated before
+  preflight, and nothing in the design said whether that was allowed〕
 
 Caps are enforced by reading files, not by remembering. The orchestrator opens
 every iteration with `loopforge.py check <dir>`: exit 0 = go, non-zero = stop and
